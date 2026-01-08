@@ -8,4 +8,6 @@ new InfraStack(app, "Infra-Winter-IoT-DEMO", {
     account: process.env.CDK_DEFAULT_ACCOUNT,
     region: process.env.CDK_DEFAULT_REGIONS,
   },
+  thingName: "winter-light",
+  deviceName: "RPi-winter",
 });
