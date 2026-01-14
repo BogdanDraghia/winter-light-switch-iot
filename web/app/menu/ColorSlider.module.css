@@ -1,0 +1,16 @@
+/* solution in order to edit @uiw/color-convert slider style  */
+
+.colorSliderWrapper :global(.w-color-alpha-fill) {
+  border-radius: 2px !important;
+  width: 20px !important;
+  height: 10px !important;
+  transform: translate(-2px, -10px) !important;
+}
+
+.colorSliderWrapper :global(.w-color-interactive) {
+  border-radius: 10px !important;
+}
+
+.colorSliderWrapper :global(.w-color-alpha) > div:first-child {
+  border-radius: 5px !important;
+}

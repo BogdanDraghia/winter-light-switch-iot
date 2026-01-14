@@ -9,12 +9,19 @@
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {
+    "@aws-sdk/credential-provider-cognito-identity": "^3.956.0",
     "@react-router/node": "7.10.1",
     "@react-router/serve": "7.10.1",
+    "@uiw/react-color": "^2.9.2",
+    "@uiw/react-color-hue": "^2.9.2",
+    "aws-iot-device-sdk-v2": "^1.24.0",
     "isbot": "^5.1.31",
+    "motion": "^12.23.26",
+    "mqtt": "^5.14.1",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router": "7.10.1"
+    "react-router": "7.10.1",
+    "zustand": "^5.0.9"
   },
   "devDependencies": {
     "@react-router/dev": "7.10.1",

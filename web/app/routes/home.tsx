@@ -1,12 +1,19 @@
 import type { Route } from "./+types/home";
-import Light from "../light/Light";
+import HouseScene from "~/house/HouseScene";
+import { IoTProvider } from "~/context/IoTContext";
+import ConnectionStatus from "~/menu/ConnectionStatus";
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
+    { title: "Demo IoT react app" },
+    { name: "description", content: "Demo IoT react app" },
   ];
 }
 
 export default function Home() {
-  return <Light />;
+  return (
+    <IoTProvider>
+      <HouseScene />
+      <ConnectionStatus />
+    </IoTProvider>
+  );
 }
