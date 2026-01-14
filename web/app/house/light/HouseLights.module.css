@@ -1,0 +1,26 @@
+.houseLights {
+  display: flex;
+  height: 194px;
+  gap: 25px;
+  width: 299px;
+  bottom: 30px;
+  z-index: -1;
+  flex-direction: column-reverse;
+  position: absolute;
+  align-items: center;
+}
+
+.houseLights > div:nth-child(3) {
+  height: 100%;
+  clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+}
+.houseLights > div:nth-child(1),
+.houseLights > div:nth-child(2) {
+  clip-path: inset(0 0 0 0);
+}
+.light {
+  filter: blur(40px);
+  opacity: 0.3;
+  height: 130px;
+  width: 200px;
+}
