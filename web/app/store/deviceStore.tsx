@@ -44,3 +44,6 @@ export const useDeviceStore = create<DeviceStore>()(
     )
   )
 );
+
+export const selectLevel = (levelIndex: number) => (state: DeviceStore) =>
+  state.levels[levelIndex];
