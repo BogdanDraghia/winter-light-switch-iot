@@ -24,7 +24,11 @@ export const useDeviceStore = create<DeviceStore>()(
     persist(
       (set) => ({
         isConnected: false,
+        isDeviceOnline: false,
+
         setConnected: (connected) => set({ isConnected: connected }),
+        setDeviceOnline: (online) => set({ isDeviceOnline: online }),
+
         levels: defaultLevel(),
         updateLevel: (level, update) =>
           set((state) => ({
@@ -32,8 +36,6 @@ export const useDeviceStore = create<DeviceStore>()(
               i === level ? { ...l, ...update } : l
             ),
           })),
-        isDeviceOnline: false,
-        setDeviceOnline: (online) => set({ isDeviceOnline: online }),
       }),
       {
         name: "store",
