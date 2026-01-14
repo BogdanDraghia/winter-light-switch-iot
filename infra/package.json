@@ -8,7 +8,9 @@
     "build": "tsc",
     "watch": "tsc -w",
     "test": "jest",
-    "cdk": "cdk"
+    "cdk": "cdk",
+    "generate-certificates": "bash scripts/create-device-certs.sh",
+    "transfer-certificates-to-device": "bash scripts/transfer-certs-via-ssh.sh"
   },
   "devDependencies": {
     "@types/jest": "^29.5.14",
