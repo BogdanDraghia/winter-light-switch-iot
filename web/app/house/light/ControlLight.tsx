@@ -39,7 +39,9 @@ const ControlLight = ({
 
   const handleColorChange = (hexColor: string) => {
     updateLevel(level, { color: hexColor });
+  };
 
+  const handleColorChangeComplete = (hexColor: string) => {
     if (levelState.effect === "solid") {
       sendCommand({
         target: "level",
@@ -100,7 +102,7 @@ const ControlLight = ({
               style={{
                 backgroundColor: getBackgroundColor(
                   levelState.effect,
-                  levelState.color
+                  levelState.color,
                 ),
               }}
               initial={false}
@@ -130,10 +132,17 @@ const ControlLight = ({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.3, ease: "easeIn" }}
               >
-                <ColorSlider color={color} onChange={handleColorChange} />
+                <ColorSlider
+                  color={color}
+                  onChange={handleColorChange}
+                  onChangeComplete={handleColorChangeComplete}
+                />
                 <ColorQuickSelect
                   currentLevel={level}
-                  onColorSelect={handleColorChange}
+                  onColorSelect={(color) => {
+                    handleColorChange(color);
+                    handleColorChangeComplete(color);
+                  }}
                 />
               </motion.div>
             )}
