@@ -13,7 +13,7 @@ interface Topics {
   docs: string;
   get: string;
   getAccepted: string;
-  commands: string;
+  update: string;
   state: string;
   connection: string;
 }
@@ -35,7 +35,7 @@ export class RealtimeDeviceService {
       docs: `$aws/things/${config.thingName}/shadow/update/documents`,
       get: `$aws/things/${config.thingName}/shadow/get`,
       getAccepted: `$aws/things/${config.thingName}/shadow/get/accepted`,
-      commands: `${config.thingName}/commands`,
+      update: `$aws/things/${config.thingName}/shadow/update`,
       state: `${config.thingName}/state`,
       connection: `${config.thingName}/status`,
     };
@@ -68,7 +68,7 @@ export class RealtimeDeviceService {
           {
             credentialsProvider: provider,
             region: this.config.region,
-          }
+          },
         );
 
       builder.withConnectProperties({
@@ -76,7 +76,7 @@ export class RealtimeDeviceService {
         keepAliveIntervalSeconds: 30,
       });
       builder.withSessionBehavior(
-        mqtt5.ClientSessionBehavior.RejoinPostSuccess
+        mqtt5.ClientSessionBehavior.RejoinPostSuccess,
       );
       builder.withRetryJitterMode(mqtt5.RetryJitterType.Full);
       builder.withMinReconnectDelayMs(1000);
@@ -91,7 +91,7 @@ export class RealtimeDeviceService {
           console.log("connect success");
           cb(true);
           this.subscribe();
-        }
+        },
       );
       this.client.on(
         "connectionFailure",
@@ -102,7 +102,7 @@ export class RealtimeDeviceService {
           // cb.onConnectionChange(true);
           cb(false);
           // this.subscribe();
-        }
+        },
       );
       this.client.on("disconnection", (eventData: mqtt5.DisconnectionEvent) => {
         console.log("MQTT Disconnected", eventData);
@@ -123,7 +123,7 @@ export class RealtimeDeviceService {
           if (this.messageCallback) {
             this.messageCallback(eventData);
           }
-        }
+        },
       );
       // this.client.on("close", () => cb.onConnectionChange(false));
 
@@ -154,38 +154,16 @@ export class RealtimeDeviceService {
     });
   }
 
-  async toggleLight(): Promise<void> {
-    if (!this.client) return;
-
-    await this.client.publish({
-      topicName: this.topics.commands,
-      payload: JSON.stringify({ action: "toggle" }),
-      qos: mqtt5.QoS.AtLeastOnce,
-    });
-  }
-
   async sendCommand(command: CommandProps): Promise<void> {
     if (!this.client) return;
 
     await this.client.publish({
-      topicName: this.topics.commands,
-      payload: JSON.stringify(command),
+      topicName: this.topics.update,
+      payload: JSON.stringify({ state: { desired: command } }),
       qos: mqtt5.QoS.AtLeastOnce,
     });
   }
 
-  // private handleMessage(
-  //   topic: string,
-  //   payload: Buffer,
-  //   onUpdate: (data: any) => void
-  // ) {
-  //   try {
-  //     const msg = JSON.parse(payload.toString());
-  //     console.log(msg);
-  //   } catch (e) {
-  //     console.warn(" MQTT message", e);
-  //   }
-  // }
   onMessage(callback: (message: mqtt5.MessageReceivedEvent) => void): void {
     this.messageCallback = callback;
   }
