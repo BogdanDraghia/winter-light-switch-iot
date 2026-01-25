@@ -22,85 +22,207 @@ enum LightEffect
     EFFECT_PARTY
 };
 
-struct LevelConfig
+enum MqttConnectionState
 {
+    MQTT_STATE_DISCONNECTED,
+    MQTT_STATE_CONNECTING,
+    MQTT_STATE_SUBSCRIBING,
+    MQTT_STATE_READY
+};
+class LightLevel
+{
+private:
+    uint8_t index;
     LightEffect effect;
     uint32_t color;
-};
 
-LevelConfig levels[NUM_OF_LEVELS];
-bool lastButtonState = HIGH;
+public:
+    LightLevel() : index(0), effect(OFF), color(0) {}
 
-void setLevelColor(uint8_t level, uint32_t color)
-{
-    uint8_t startLed = level * PIXEL_PER_RING;
-    for (uint8_t i = 0; i < PIXEL_PER_RING; i++)
+    void setIndex(uint8_t idx)
     {
-        pixels.setPixelColor(startLed + i, color);
-    }
-}
-
-void updateLevelLight(uint8_t level, LightEffect effect, uint32_t color = 0)
-{
-    if (level >= NUM_OF_LEVELS)
-        return;
-
-    levels[level].effect = effect;
-    if (color != 0)
-        levels[level].color = color;
-
-    if (effect == SOLID)
-    {
-        setLevelColor(level, levels[level].color);
-    }
-    else if (effect == OFF)
-    {
-        setLevelColor(level, 0);
-    }
-}
-
-void setAllLevels(LightEffect effect, uint32_t color = 0)
-{
-    for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
-    {
-        updateLevelLight(i, effect, color);
-    }
-    pixels.show();
-}
-
-void updateLights()
-{
-    bool needUpdate = false;
-    unsigned long now = millis();
-
-    static unsigned long lastCandleUpdate = 0;
-    static uint8_t globalFlicker = 100;
-
-    if (now - lastCandleUpdate > 100)
-    {
-        globalFlicker = random(55, 101);
-        lastCandleUpdate = now;
+        index = idx;
     }
 
-    for (uint8_t level = 0; level < NUM_OF_LEVELS; level++)
+    LightEffect getEffect() const { return effect; }
+    uint32_t getColor() const { return color; }
+
+    void update(Adafruit_NeoPixel &pixels)
     {
-        if (levels[level].effect == EFFECT_CANDLE)
+        if (effect == OFF)
         {
-            uint8_t startLed = level * PIXEL_PER_RING;
-            uint8_t r = (255 * globalFlicker) / 100;
-            uint8_t g = (140 * globalFlicker) / 100;
-
-            for (uint8_t i = 0; i < PIXEL_PER_RING; i++)
-            {
-                pixels.setPixelColor(startLed + i, pixels.Color(r, g, 0));
-            }
-            needUpdate = true;
+            handleSolidColor(pixels, 0);
+        }
+        else if (effect == SOLID)
+        {
+            handleSolidColor(pixels, color);
+        }
+        else if (effect == EFFECT_CANDLE)
+        {
+            handleCandleEffect(pixels);
+        }
+    }
+    void setState(LightEffect newEffect, uint32_t newColor)
+    {
+        effect = newEffect;
+        if (newEffect != EFFECT_CANDLE && newColor != 0)
+        {
+            color = newColor;
         }
     }
 
-    if (needUpdate)
+private:
+    void handleSolidColor(Adafruit_NeoPixel &pixels, uint32_t color)
+    {
+        uint8_t startLed = index * PIXEL_PER_RING;
+        for (uint8_t i = 0; i < PIXEL_PER_RING; i++)
+        {
+            pixels.setPixelColor(startLed + i, color);
+        }
+    }
+    void handleCandleEffect(Adafruit_NeoPixel &pixels)
+    {
+        static unsigned long lastCandleUpdate = 0;
+        static uint8_t globalFlicker = 100;
+
+        if (millis() - lastCandleUpdate > 100)
+        {
+            globalFlicker = random(55, 101);
+            lastCandleUpdate = millis();
+        }
+
+        uint8_t r = (255 * globalFlicker) / 100;
+        uint8_t g = (140 * globalFlicker) / 100;
+        handleSolidColor(pixels, pixels.Color(r, g, 0));
+    }
+};
+
+class LevelController
+{
+private:
+    Adafruit_NeoPixel &pixels;
+    LightLevel levels[NUM_OF_LEVELS];
+    struct SavedState
+    {
+        LightEffect effect;
+        uint32_t color;
+    };
+    SavedState savedStates[NUM_OF_LEVELS];
+    bool hasSavedState = false;
+
+public:
+    void showLoadingAnimation()
+    {
+        static unsigned long lastUpdate = 0;
+        static uint8_t currentLevel = 0;
+
+        if (millis() - lastUpdate > 200)
+        {
+
+            for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
+            {
+                levels[i].setState(OFF, 0);
+                levels[i].update(pixels);
+            }
+
+            uint32_t loadingColor = pixels.Color(50, 50, 200);
+            levels[currentLevel].setState(SOLID, loadingColor);
+            levels[currentLevel].update(pixels);
+
+            pixels.show();
+
+            currentLevel = (currentLevel + 1) % NUM_OF_LEVELS;
+            lastUpdate = millis();
+        }
+    }
+
+    LevelController(Adafruit_NeoPixel &pixel) : pixels(pixel)
+    {
+        for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
+        {
+            levels[i].setIndex(i);
+        }
+    }
+
+    void updateAll()
+    {
+        for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
+        {
+            levels[i].update(pixels);
+        }
         pixels.show();
-}
+    }
+
+    void setLevel(uint8_t level, LightEffect effect, uint32_t color = 0)
+    {
+        if (level < NUM_OF_LEVELS)
+        {
+            levels[level].setState(effect, color);
+        }
+    }
+    void setAll(LightEffect effect, uint32_t color = 0)
+    {
+        for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
+        {
+            levels[i].setState(effect, color);
+        }
+        pixels.show();
+    }
+    bool anyOn() const
+    {
+        for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
+        {
+            if (levels[i].getEffect() != OFF)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    LightEffect getLevelEffect(uint8_t level) const
+    {
+        return (level < NUM_OF_LEVELS) ? levels[level].getEffect() : OFF;
+    }
+
+    uint32_t getLevelColor(uint8_t level) const
+    {
+        return (level < NUM_OF_LEVELS) ? levels[level].getColor() : 0;
+    }
+
+    void saveState()
+    {
+        for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
+        {
+            savedStates[i].effect = levels[i].getEffect();
+            savedStates[i].color = levels[i].getColor();
+        }
+        hasSavedState = true;
+    }
+
+    void restoreState()
+    {
+        if (!hasSavedState)
+        {
+            uint32_t warmOrange = pixels.Color(255, 100, 0);
+            setAll(SOLID, warmOrange);
+            return;
+        }
+
+        for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
+        {
+            levels[i].setState(savedStates[i].effect, savedStates[i].color);
+        }
+        pixels.show();
+    }
+};
+
+LevelController *levelController = nullptr;
+MqttConnectionState mqttState = MQTT_STATE_DISCONNECTED;
+uint8_t subscriptionsReceived = 0;
+const uint8_t REQUIRED_SUBSCRIPTIONS = 2;
+bool lastButtonState = HIGH;
+
 uint32_t parseHexColor(const char *colorStr)
 {
     if (!colorStr || colorStr[0] != '#')
@@ -109,85 +231,188 @@ uint32_t parseHexColor(const char *colorStr)
     return pixels.Color((hex >> 16) & 0xFF, (hex >> 8) & 0xFF, hex & 0xFF);
 }
 
-void publishState(const char *trigger)
+void publishState(const char *trigger, bool clearDesired = false)
 {
     JsonDocument jsonDoc;
-    jsonDoc["device"] = THINGNAME;
-    jsonDoc["trigger"] = trigger;
 
-    JsonArray levelsArr = jsonDoc["levels"].to<JsonArray>();
+    JsonObject reported = jsonDoc["state"]["reported"].to<JsonObject>();
+
+    reported["device"] = THINGNAME;
+    reported["trigger"] = trigger;
+
+    JsonArray levelsArr = reported["levels"].to<JsonArray>();
     for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
     {
         JsonObject level = levelsArr.add<JsonObject>();
         level["level"] = i;
-        level["effect"] = (levels[i].effect == OFF) ? "off" : (levels[i].effect == EFFECT_CANDLE) ? "candle"
+
+        LightEffect effect = levelController->getLevelEffect(i);
+        level["effect"] = (effect == OFF) ? "off" : (effect == EFFECT_CANDLE) ? "candle"
+                                                                              : "solid";
+
+        char hexBuffer[8];
+        uint32_t c = levelController->getLevelColor(i);
+        sprintf(hexBuffer, "#%06X", c & 0xFFFFFF);
+        level["color"] = hexBuffer;
     }
 
-    char buffer[256];
+    if (clearDesired)
+    {
+        jsonDoc["state"]["desired"] = (char *)NULL;
+    }
+
+    char buffer[512];
     serializeJson(jsonDoc, buffer);
-    esp_mqtt_client_publish(mqttClient, "winter-light/state", buffer, 0, 1, 0);
+    esp_mqtt_client_publish(mqttClient, "$aws/things/" THINGNAME "/shadow/update", buffer, 0, 1, 0);
 }
 
-void handleCommand(const char *data, int len)
+LightEffect parseEffect(const char *effectStr)
 {
-    JsonDocument doc;
-    if (deserializeJson(doc, data, len))
+    if (effectStr && strcmp(effectStr, "solid") == 0)
+        return SOLID;
+    if (effectStr && strcmp(effectStr, "candle") == 0)
+        return EFFECT_CANDLE;
+    return OFF;
+}
+
+void handleShadowGet(const char *data, int len)
+{
+    Serial.printf("shadow get, len=%d\r\n", len);
+    Serial.printf("data: %.*s\r\n", len, data);
+
+    JsonDocument root;
+    if (deserializeJson(root, data, len))
+    {
+        Serial.println("failed to parse JSON");
+        return;
+    }
+
+    JsonArray levelsArr = root["state"]["reported"]["levels"];
+    if (!levelsArr)
+    {
+        Serial.println("no levels array in shadow");
+        return;
+    }
+
+    for (JsonObject lvl : levelsArr)
+    {
+        uint8_t idx = lvl["level"];
+        if (idx >= NUM_OF_LEVELS)
+            continue;
+
+        LightEffect effect = parseEffect(lvl["effect"]);
+        uint32_t color = parseHexColor(lvl["color"]);
+
+        levelController->setLevel(idx, effect, color);
+    }
+
+    levelController->updateAll();
+
+    Serial.println("restored state from shadow");
+}
+
+void handleDelta(const char *data, int len)
+{
+    JsonDocument root;
+    if (deserializeJson(root, data, len))
         return;
 
-    const char *target = doc["target"];
-    const char *effectStr = doc["effect"];
+    JsonObject doc = root["state"];
 
-    LightEffect effect = OFF;
-    if (strcmp(effectStr, "solid") == 0)
-        effect = SOLID;
-    else if (strcmp(effectStr, "candle") == 0)
-        effect = EFFECT_CANDLE;
+    const char *target = doc["target"] | "all";
+    LightEffect effect = parseEffect(doc["effect"]);
 
     uint32_t color = 0;
-    if (doc["color"])
+    if (effect != EFFECT_CANDLE && doc["color"])
+    {
         color = parseHexColor(doc["color"]);
+    }
 
     if (strcmp(target, "all") == 0)
     {
-        setAllLevels(effect, color);
+        levelController->setAll(effect, color);
     }
-    else if (strcmp(target, "level") == 0)
+    else
     {
-        updateLevelLight(doc["level"], effect, color);
-        pixels.show();
+        uint8_t level = doc["level"];
+        levelController->setLevel(level, effect, color);
+        levelController->updateAll();
     }
 
-    publishState("mqtt_command");
+    publishState("shadow_sync", true);
 }
 
 static void mqttEventHandler(void *arg, esp_event_base_t base, int32_t event_id, void *event_data)
 {
     esp_mqtt_event_handle_t event = (esp_mqtt_event_handle_t)event_data;
-
     switch (event_id)
     {
     case MQTT_EVENT_CONNECTED:
     {
         Serial.println("MQTT connected");
 
+        mqttState = MQTT_STATE_SUBSCRIBING;
+        subscriptionsReceived = 0;
+
         char online_msg[64];
         snprintf(online_msg, sizeof(online_msg), "{\"device\":\"%s\",\"status\":\"online\"}", THINGNAME);
         esp_mqtt_client_publish(mqttClient, "winter-light/status", online_msg, 0, 1, 0);
 
-        esp_mqtt_client_subscribe(mqttClient, "winter-light/commands", 1);
-
-        publishState("boot");
+        esp_mqtt_client_subscribe(mqttClient, "$aws/things/" THINGNAME "/shadow/update/delta", 1);
+        esp_mqtt_client_subscribe(mqttClient, "$aws/things/" THINGNAME "/shadow/get/accepted", 1);
+        break;
+    }
+    case MQTT_EVENT_SUBSCRIBED:
+    {
+        if (mqttState != MQTT_STATE_SUBSCRIBING)
+        {
+            Serial.println("ignoring sub");
+            break;
+        }
+        subscriptionsReceived++;
+        if (subscriptionsReceived >= REQUIRED_SUBSCRIPTIONS)
+        {
+            mqttState = MQTT_STATE_READY;
+            Serial.println("subs ready, requesting shadow");
+            esp_mqtt_client_publish(mqttClient, "$aws/things/" THINGNAME "/shadow/get", "{}", 0, 1, 0);
+        }
         break;
     }
     case MQTT_EVENT_DISCONNECTED:
+    {
         Serial.println("MQTT disconnected");
+
+        // State transition: ANY → DISCONNECTED
+        mqttState = MQTT_STATE_DISCONNECTED;
+        subscriptionsReceived = 0;
         break;
+    }
     case MQTT_EVENT_DATA:
-        handleCommand(event->data, event->data_len);
+    {
+
+        if (mqttState != MQTT_STATE_READY)
+        {
+            Serial.println("ignoring data, subs not ready");
+            break;
+        }
+        Serial.printf("topic: %.*s\r\n", event->topic_len, event->topic);
+
+        if (strstr(event->topic, "/shadow/get/accepted"))
+        {
+            handleShadowGet(event->data, event->data_len);
+        }
+        else if (strstr(event->topic, "/shadow/update/delta"))
+        {
+            handleDelta(event->data, event->data_len);
+        }
         break;
+    }
     case MQTT_EVENT_ERROR:
+    {
         Serial.println("MQTT error");
+        mqttState = MQTT_STATE_DISCONNECTED;
         break;
+    }
     }
 }
 
@@ -200,9 +425,8 @@ void connectAWS()
         delay(500);
         Serial.print(".");
     }
-
     Serial.println("OK");
-    // LWT message
+
     static char lwt_msg[64];
     snprintf(lwt_msg, sizeof(lwt_msg), "{\"device\":\"%s\",\"status\":\"offline\"}", THINGNAME);
 
@@ -213,11 +437,9 @@ void connectAWS()
     cfg.client_key_pem = AWS_CERT_PRIVATE;
     cfg.client_id = THINGNAME;
     cfg.keepalive = 10;
-    // LWT config
     cfg.lwt_topic = "winter-light/status";
     cfg.lwt_msg = lwt_msg;
     cfg.lwt_qos = 1;
-    cfg.lwt_retain = 0;
 
     mqttClient = esp_mqtt_client_init(&cfg);
     esp_mqtt_client_register_event(mqttClient, (esp_mqtt_event_id_t)ESP_EVENT_ANY_ID, mqttEventHandler, NULL);
@@ -234,19 +456,20 @@ void setup()
     pixels.clear();
     pixels.show();
 
-    uint32_t warmOrange = pixels.Color(255, 100, 0);
-    for (uint8_t i = 0; i < NUM_OF_LEVELS; i++)
-    {
-        levels[i].effect = OFF;
-        levels[i].color = warmOrange;
-    }
+    levelController = new LevelController(pixels);
 
     connectAWS();
 }
 
 void loop()
 {
-    updateLights();
+    if (mqttState != MQTT_STATE_READY)
+    {
+        levelController->showLoadingAnimation();
+        return;
+    }
+
+    levelController->updateAll();
 
     bool currentButtonState = digitalRead(PIN_BUTTON);
     static unsigned long lastPress = 0;
@@ -254,11 +477,19 @@ void loop()
     if (currentButtonState == LOW && lastButtonState == HIGH && millis() - lastPress > 300)
     {
         lastPress = millis();
-        bool anyOn = (levels[0].effect != OFF || levels[1].effect != OFF || levels[2].effect != OFF);
-        setAllLevels(anyOn ? OFF : SOLID);
+
+        if (levelController->anyOn())
+        {
+            levelController->saveState();
+            levelController->setAll(OFF);
+        }
+        else
+        {
+            levelController->restoreState();
+        }
+
         publishState("button");
     }
     lastButtonState = currentButtonState;
-
     delay(10);
 }

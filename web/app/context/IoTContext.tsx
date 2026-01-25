@@ -26,7 +26,7 @@ const IoTContext = createContext<IoTContextValue | null>(null);
 
 export const IoTProvider = ({ children }: { children: ReactNode }) => {
   const serviceRef = useRef<RealtimeDeviceService | null>(null);
-  const { setConnected, setDeviceOnline } = useDeviceStore();
+  const { setConnected, setDeviceOnline, setDeviceState } = useDeviceStore();
 
   useEffect(() => {
     serviceRef.current = new RealtimeDeviceService(config);
@@ -40,12 +40,24 @@ export const IoTProvider = ({ children }: { children: ReactNode }) => {
         const topic = event.message.topicName;
 
         const payload = new TextDecoder().decode(
-          event.message.payload as Uint8Array
+          event.message.payload as Uint8Array,
         );
 
         const data = JSON.parse(payload);
 
         console.log(payload);
+
+        if (topic === `$aws/things/${config.thingName}/shadow/get/accepted`) {
+          setDeviceState(data, true);
+          return;
+        }
+
+        if (
+          topic === `$aws/things/${config.thingName}/shadow/update/documents`
+        ) {
+          setDeviceState(data, false);
+          return;
+        }
 
         if (topic === `${config.thingName}/status`) {
           setDeviceOnline(data.status === "online");
@@ -60,7 +72,7 @@ export const IoTProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       serviceRef.current?.disconnect();
     };
-  }, [setConnected, setDeviceOnline]);
+  }, [setConnected, setDeviceOnline, setDeviceState]);
 
   const sendCommand = useCallback((command: CommandProps) => {
     serviceRef.current?.sendCommand(command);

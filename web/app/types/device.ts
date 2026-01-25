@@ -18,3 +18,26 @@ export interface CommandProps {
   level?: number;
   color?: string;
 }
+
+export interface ShadowReported {
+  device?: string;
+  trigger?: string;
+  levels: LevelState[];
+}
+
+export interface ShadowStateRoot {
+  reported?: ShadowReported;
+  desired?: ShadowReported;
+}
+
+export interface ShadowGetPayload {
+  state?: ShadowStateRoot;
+}
+
+export interface ShadowUpdatePayload {
+  current?: {
+    state?: ShadowStateRoot;
+  };
+}
+
+export type ShadowPayload = ShadowGetPayload & ShadowUpdatePayload;
